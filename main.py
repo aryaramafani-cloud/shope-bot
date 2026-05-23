@@ -9,10 +9,9 @@ cookie_ready = False
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "🤖 **Shopee Auto Checkout**\n\n"
-        "1. Copy cookie pakai ekstensi 'Copy Cookies' (pilih **Copy as JSON**).\n"
-        "2. Paste teks JSON-nya ke sini.\n"
-        "3. /buy <link_produk>\n"
-        "4. Bot checkout + voucher otomatis.\n\n"
+        "1. Copy cookie (Copy as JSON) lalu paste teksnya, atau kirim file .json.\n"
+        "2. /buy <link_produk>\n"
+        "3. Bot checkout + voucher otomatis.\n\n"
         "Contoh: /buy https://shopee.co.id/produk-i.123.456"
     )
 
@@ -27,14 +26,25 @@ async def receive_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
             cookie_ready = True
             await update.message.reply_text("✅ Cookie siap. Kirim /buy <link>")
         else:
-            await update.message.reply_text("❌ Format harus list JSON.")
+            await update.message.reply_text("❌ Format harus list/array JSON, diawali '[' dan diakhiri ']'.")
     except json.JSONDecodeError:
-        pass  # abaikan pesan biasa
+        await update.message.reply_text("❌ Format JSON tidak valid. Pastikan hasil Copy as JSON, bukan format lain.")
+
+async def receive_file(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    global cookie_ready
+    doc = update.message.document
+    if doc.file_name.endswith('.json'):
+        file = await doc.get_file()
+        await file.download_to_drive(COOKIE_TEMP_PATH)
+        cookie_ready = True
+        await update.message.reply_text("✅ Cookie dari file siap. Kirim /buy <link>")
+    else:
+        await update.message.reply_text("❌ Harap kirim file .json.")
 
 async def buy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global cookie_ready
     if not cookie_ready:
-        await update.message.reply_text("❌ Kirim dulu teks cookie.")
+        await update.message.reply_text("❌ Kirim dulu teks cookie atau file .json.")
         return
     if not context.args:
         await update.message.reply_text("❌ Format: /buy <link>")
@@ -73,6 +83,7 @@ def main():
     app.add_handler(CommandHandler("buy", buy))
     app.add_handler(CommandHandler("status", status_cmd))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, receive_text))
+    app.add_handler(MessageHandler(filters.Document.ALL, receive_file))
     print("Bot berjalan...")
     app.run_polling()
 
